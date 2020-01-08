@@ -76,14 +76,14 @@ For a message *m* and key *(z<sub>1</sub>, z<sub>2</sub>)*, *Purify((z<sub>1</su
 
 The <code>purify.py</code> tool implements this:
 
-    $ ./purify.py eval 11427c7268288dddf0cd24af3d30524fd817a91e103e7e02eb28b78db81cb350b3d2562f45fa8ecd711d1becc02fa348cf2187429228e7aac6644a3da2824e93 01234567
+    $ ./purify.py eval 01234567 11427c7268288dddf0cd24af3d30524fd817a91e103e7e02eb28b78db81cb350b3d2562f45fa8ecd711d1becc02fa348cf2187429228e7aac6644a3da2824e93
     eval: afae82108c66397451ce376bc95751c398e40eaf8c768d1b18cc9dd4161cee35
 
 ## Verification using arithmetic circuits
 
 The <code>purify.py</code> can also construct arithmetic circuits that verify the Purify evaluation as well as correctness of public keys. Specifically:
 
-    $ ./purify.py verifier 01234567 >verifier.py
+    $ ./purify.py verifier 01234567 9343f981e9c40546061e63f9f4e6f61541c483c8aae8fe27180c490f0faf584d5036a5952b01200d8b0fdb49c83d5f8dcc8ae434e77785c576720d18897bbea5 >verifier.py
 
 This generates a Python function <code>verifier(pubkey, output, v)</code> that takes as input the *x* value from above, the output from the evaluation, and
 an assignment for all of the circuit's secret variables. It is specific for the message <code>01234567</code> in this case.
@@ -103,6 +103,8 @@ These are indeed the public key and the evaluation. The third argument to <code>
     $ cat verifier.py proof.py | python3
 
 **Note that this does not actually implement any zero-knowledge proofs. It only derives the relations that would need to be proven, and the secret values they're over in specific instances.**
+
+Alternatively, by adding the <code>--bulletproofs-outfile</code> flag to the <code>prove</code> and <code>verifier</code> commands, the output is a format that can be used in the [libsecp256k1-zkp](https://github.com/ElementsProject/secp256k1-zkp/pull/16) bulletproofs module (see https://github.com/jonasnick/secp256k1-zkp/tree/bulletproof-musig-dn for benchmarking purify with bulletproofs).
 
 ## Example parameters
 
