@@ -4,6 +4,9 @@ import sys
 import hmac
 import hashlib
 import secrets
+import copy
+import struct
+import math
 from math import ceil
 
 # Parameters generated using gen_params.sage for Curve25519
@@ -302,11 +305,11 @@ class Expr:
             if (factor == 1):
                 terms.append(varname)
             else:
-                terms.append("%i*%s" % (factor, varname))
+                terms.append("%i * %s" % (factor, varname))
         if len(terms) == 1:
             return terms[0]
         else:
-            return "(" + (" + ".join(terms)) + ")"
+            return (" + ".join(terms))
 
     def evaluate(self, m):
         if self.const is None:
@@ -318,6 +321,12 @@ class Expr:
             else:
                 return None
         return ret % P
+
+    # split in constant and non-constant part
+    def split(self):
+        e = Expr(0)
+        e.linear = self.linear
+        return (Expr(self.const), e)
 
 class Transcript:
     def __init__(self):
@@ -397,6 +406,107 @@ class Transcript:
 #        bitsum = sum(ret[i] * (1 << i) for i in range(n)]
 #        self.eqs.append(bitsum - e)
 #        return ret
+
+class BulletproofTranscript:
+    def __init__(self):
+        self.assignments = []
+        self.constraints = []
+        self.vtoA = {}
+        self.n_muls = 0
+        self.n_commitments = 1
+        self.n_bits = 0
+
+    def replace_expr_v_with_bp_var(self, e):
+        e.linear = list(map(lambda x: x if not x[0] in self.vtoA else (self.vtoA[x[0]], x[1]), e.linear))
+
+    def replace_and_insert(self, e, s):
+        if len(e.linear) >= 1:
+            self.replace_expr_v_with_bp_var(e)
+            if e.const == 0 and len(e.linear) == 1 and not e.linear[0][0] in self.vtoA:
+                self.vtoA[e.linear[0][0]] = s
+                if "v[" in e.linear[0][0]:
+                    return True
+        return False
+
+    def add_assignment(self, s, a):
+        is_v = self.replace_and_insert(a, s)
+        self.assignments += [(s, a, is_v)]
+
+    def from_transcript(self, t, n_bits):
+        self.n_bits = n_bits
+        # libsecp-zkp bulletproofs require power of 2 muls
+        self.n_muls = 2**math.ceil(math.log(len(t.muls), 2))
+        for (i, (a, b, m)) in enumerate(t.muls):
+            # need to copy because the muls elements are the same expressions
+            # sometimes, but we rely on being able to change the expressions
+            # independently
+            self.add_assignment("L%i" % i, copy.deepcopy(a))
+            self.add_assignment("R%i" % i, copy.deepcopy(b))
+            self.add_assignment("O%i" % i, copy.deepcopy(m))
+
+        for i in range(len(t.muls), self.n_muls):
+            self.add_assignment("L%i" % i, Expr(0))
+            self.add_assignment("R%i" % i, Expr(0))
+            self.add_assignment("O%i" % i, Expr(0))
+
+    def add_pubkey_and_out(self, pubkey, P1x, P2x, out):
+        def a(pk, Px):
+            self.replace_expr_v_with_bp_var(Px)
+            c, l = Px.split()
+            tup = (l, pk - c)
+            self.constraints += [tup]
+        a(pubkey % P, P1x)
+        a(pubkey // P, P2x)
+        self.replace_expr_v_with_bp_var(out)
+        self.constraints += [(out - Expr("V0"), Expr(0))]
+
+    def __str__(self):
+        n_constraints = len(list(filter(lambda x: not x[2], self.assignments))) + len(self.constraints)
+        ret = "%i,%i,%i,%i;" % (self.n_muls, self.n_commitments, self.n_bits, n_constraints - 2*self.n_bits)
+        i = 0
+        for (s, a, is_v) in self.assignments:
+            if not is_v:
+                # skip bit constraints
+                if i < 2*self.n_bits:
+                    i += 1
+                    continue
+                c, l = a.split()
+                ret += "%s%s = %s;" % (s, " + %s" % -l if len(l.linear) != 0 else "", c)
+
+        for cons in self.constraints:
+            ret += "%s = %s;" % cons
+
+        return ret
+
+    def evaluate(self, m, commitment):
+        m["V0"] = commitment
+        for (v, A)  in self.vtoA.items():
+            m[A] = m[v]
+        for assign in self.assignments:
+            m[assign[0]] = assign[1].evaluate(m)
+        for i in range(self.n_muls):
+            if (m["L%i" %i] * m["R%i" % i]) % P != m["O%i" % i]:
+                return False
+        for con in self.constraints:
+            if con[0].evaluate(m) != con[1].evaluate(m):
+                return False
+        return True
+
+    # m has been called with evaluate
+    def write_assignment(self, m, f):
+        version = 1
+        f.write(struct.pack('i', version))
+        f.write(struct.pack('i', self.n_commitments))
+        f.write(struct.pack('Q', self.n_muls))
+        def write(s):
+            for i in range(self.n_muls):
+                f.write(b'\x20')
+                f.write(m["%s%s" % (s, i)].to_bytes(32, byteorder='little'))
+        write("L")
+        write("R")
+        write("O")
+        f.write(b'\x20')
+        f.write(m["V0"].to_bytes(32, byteorder='little'))
 
 def hmac_sha256(key, data):
     return hmac.new(key, data, hashlib.sha256).digest()
@@ -583,11 +693,13 @@ def circuit_main(trans, M1, M2, z1=None, z2=None):
         z2bitvals = key_to_bits(z2, N2.bit_length() - 1)
     z1bits = [trans.boolean(trans.secret(z1bitval)) for z1bitval in z1bitvals]
     z2bits = [trans.boolean(trans.secret(z2bitval)) for z2bitval in z2bitvals]
+    # number of bit constraints
+    n_bits = len(z1bits) + len(z2bits)
     out_P1x = circuit_ec_multiply_x(E1, trans, G1, z1bits)
     out_P2x = circuit_ec_multiply_x(E2, trans, G2, z2bits)
     out_x1 = circuit_ec_multiply_x(E1, trans, M1, z1bits)
     out_x2 = circuit_ec_multiply_x(E2, trans, M2, z2bits)
-    return (circuit_combine(trans, out_x1, out_x2), out_P1x, out_P2x)
+    return (circuit_combine(trans, out_x1, out_x2), out_P1x, out_P2x, n_bits)
 
 if len(sys.argv) < 2:
     print("Usage: %s gen [<seckey>]: generate a key" % __file__)
@@ -617,23 +729,17 @@ elif sys.argv[1] == "eval":
     print("eval: %x" % out)
 elif sys.argv[1] == "verifier":
     m = bytes.fromhex(sys.argv[2])
+    pubkey = int(sys.argv[3], 16)
     M1 = hash_to_curve(b"Eval/1/" + m, E1)
     M2 = hash_to_curve(b"Eval/2/" + m, E2)
     trans = Transcript()
-    out, P1x, P2x = circuit_main(trans, M1, M2)
-    print("def verify(pubkey, output, v):")
-    print("    P = %i" % P)
-    print("    # %i multiplications" % len(trans.muls))
-    for (a, b, m) in trans.muls:
-        print("    assert((%s * %s - %s) %% P == 0)" % (a, b, m))
-    print("    # %i linear equations" % len(trans.eqs))
-    for (eq) in trans.eqs:
-        print("    assert((%s) %% P == 0)" % eq)
-    print("    # Verify public key")
-    print("    assert(%s %% P == pubkey %% P)" % P1x)
-    print("    assert(%s %% P == pubkey // P)" % P2x)
-    print("    # Verify output")
-    print("    assert(output == %s %% P)" % out)
+    out, P1x, P2x, n_bits = circuit_main(trans, M1, M2)
+
+    bT = BulletproofTranscript()
+    bT.from_transcript(trans, n_bits)
+    bT.add_pubkey_and_out(pubkey, P1x, P2x, out)
+    print(str(bT))
+
 elif sys.argv[1] == "prove":
     m = bytes.fromhex(sys.argv[2])
     z = int(sys.argv[3], 16)
@@ -646,11 +752,18 @@ elif sys.argv[1] == "prove":
     Q2 = E2.affine(E2.mul(M2, z2))
     out_native = combine(Q1[0], Q2[0])
     trans = Transcript()
-    out, P1x, P2x = circuit_main(trans, M1, M2, z1, z2)
+    out, P1x, P2x, n_bits = circuit_main(trans, M1, M2, z1, z2)
     assert(trans.evaluate(P1x) == P1[0])
     assert(trans.evaluate(P2x) == P2[0])
     assert(trans.evaluate(out) == out_native)
     pubkey = pack_public(P1[0], P2[0])
-    print("verify(0x%x, 0x%x, [%s])" % (pubkey, out_native, ",".join("%s" % (trans.varmap["v[%i]" % i]) for i in range(len(trans.varmap)))))
+    bT = BulletproofTranscript()
+    bT.from_transcript(trans, n_bits)
+    bT.add_pubkey_and_out(pubkey, P1x, P2x, out)
+    assert(bT.evaluate(trans.varmap, out_native))
+
+    with open("prove.assn", 'wb') as f:
+        bT.write_assignment(trans.varmap, f)
+
 else:
     print("Unknown command")
