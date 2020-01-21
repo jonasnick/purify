@@ -26,10 +26,15 @@ def embedding_degree(Curve):
     order = Curve.order()
     Fg = GF(order)
     x = Fg(size)
+    # due to Fermat's little theorem
     for degree in divisors(order-1):
         if (x**degree == Fg(1)):
-            return (order-1)//degree
+            return degree
     return -1
+
+def embedding_degree_pretty_print(Curve, order_str):
+    order = Curve.order()
+    return "(%s - 1) / %i" % (order_str, (order-1)//embedding_degree(Curve))
 
 sum_a_b = 1
 iter = 0
@@ -66,8 +71,8 @@ while True:
         print("D = %i # non-square in GF(P)" % D)
         print("N1 = %i # Order of E1: y^2 = x^3 + A*x + B over GF(P)" % n1)
         print("N2 = %i # Order of E2: y^2 = x^3 + A*D^2*x + B*D^3 over GF(P)" % n2)
-        print("# E1 = (N1 - 1) / %i # Embedding degree of E1" % embedding_degree(E1))
-        print("# E2 = (N2 - 1) / %i # Embedding degree of E2" % embedding_degree(E2))
+        print("# ED1 = %s # Embedding degree of E1" % embedding_degree_pretty_print(E1, "N1"))
+        print("# ED2 = %s # Embedding degree of E2" % embedding_degree_pretty_print(E2, "N2"))
         sys.exit()
     sum_a_b += 1
 

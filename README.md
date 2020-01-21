@@ -47,8 +47,8 @@ The tool <code>gen_params.sage</code> can be used to find appropriate values for
     D = 5 # non-square in GF(P)
     N1 = 999956519 # Order of E1: y^2 = x^3 + A*x + B over GF(P)
     N2 = 1000043497 # Order of E2: y^2 = x^3 + A*D^2*x + B*D^3 over GF(P)
-    # E1 = (N1 - 1) / 1 # Embedding degree of E1
-    # E2 = (N2 - 1) / 3 # Embedding degree of E2
+    # ED1 = (N1 - 1) / 1 # Embedding degree of E1
+    # ED2 = (N2 - 1) / 3 # Embedding degree of E2
 
 For values of P that are sufficiently large for cryptographic purposes (256 bits and larger), this
 may take several days. For primes equal to common group orders, see the Example Parameters section below.
@@ -114,6 +114,8 @@ The code in this repository has parameters that correspond to the order of the s
     D = 5
     N1 = 115792089237316195423570985008687907853146579067639158218940405176378157516777
     N2 = 115792089237316195423570985008687907852528549490510650546269921106658165471899
+    # ED1 = (N1 - 1) / 1 # Embedding degree of E1
+    # ED2 = (N2 - 1) / 1 # Embedding degree of E2
 
 Using this 256-bit prime results in verification circuits that have 2030 multiplication gates.
 
@@ -126,6 +128,8 @@ Other target groups can be configured by modifying purify.py. Other parameters a
     D = 2
     N1 = 0x100000000000000000000000000000004E9C306B81CF1C611587B3ED91288DAD
     N2 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDB21C351C4201D4B9A9D124728C31A2F
+    # ED1 = (N1 - 1) / 31 # Embedding degree of E1
+    # ED2 = (N2 - 1) / 1 # Embedding degree of E2
 
     # Parameters generated using gen_params.sage for BLS12-381 (255 bits)
     P = 0x73EDA753299D7D483339D80809A1D80553BDA402FFFE5BFEFFFFFFFF00000001
@@ -134,6 +138,8 @@ Other target groups can be configured by modifying purify.py. Other parameters a
     D = 5
     N1 = 0x73EDA753299D7D483339D80809A1D804942105BA15136AAC92458EF0CDB43949
     N2 = 0x73EDA753299D7D483339D80809A1D806135A424BEAE94D516DBA710D324BC6BB
+    # ED1 = (N1 - 1) / 2 # Embedding degree of E1
+    # ED2 = (N2 - 1) / 1 # Embedding degree of E2
 
     # Parameters generated using gen_params.sage for BN(2,254) (254 bits)
     P = 0x2523648240000001BA344D8000000007FF9F800000000010A10000000000000D
@@ -142,6 +148,8 @@ Other target groups can be configured by modifying purify.py. Other parameters a
     D = 2
     N1 = 0x2523648240000001BA344D80000000089C9DDF8B4198211E1005BEF4E673BA39
     N2 = 0x2523648240000001BA344D800000000762A12074BE67DF0331FA410B198C45E3
+    # ED1 = (N1 - 1) / 70 # Embedding degree of E1
+    # ED2 = (N2 - 1) / 23 # Embedding degree of E2
 
     # Parameters generated using gen_params.sage for Ed448-Goldilocks (446 bits)
     P = 0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7CCA23E9C44EDB49AED63690216CC2728DC58F552378C292AB5844F3
@@ -150,3 +158,5 @@ Other target groups can be configured by modifying purify.py. Other parameters a
     D = 2
     N1 = 0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF61E19CF8AE93A7F6204DD85972E93B7A4C4733D057799E70F578D05B
     N2 = 0x3FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF97B2AADADA0A0E9D3D5E94C6CFF0496ACF43EAD9EF77E6B46137B98D
+    # ED1 = (N1 - 1) / 34 # Embedding degree of E1
+    # ED2 = (N2 - 1) / 2 # Embedding degree of E2
