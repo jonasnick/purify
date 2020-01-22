@@ -106,6 +106,8 @@ These are indeed the public key and the evaluation. The third argument to <code>
 
 Alternatively, by adding the <code>--bulletproofs-outfile</code> flag to the <code>prove</code> and <code>verifier</code> commands, the output is a format that can be used in the [libsecp256k1-zkp](https://github.com/ElementsProject/secp256k1-zkp/pull/16) bulletproofs module (see https://github.com/jonasnick/secp256k1-zkp/tree/bulletproof-musig-dn for benchmarking purify with bulletproofs).
 
+With the <code>verifier</code> command and the <code>--z3</code> flag the output is a python program that that uses the [Z3 theorem prover](https://github.com/Z3Prover/z3) to solve the circuit. Given enough time and memory, this can be used to falsify the hypothesis that purify is secure.
+
 ## Example parameters
 
 The code in this repository has parameters that correspond to the order of the secp256k1 group:

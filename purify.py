@@ -800,6 +800,35 @@ def verifier_cmd_bulletproofs(fname, trans, n_bits, pubkey, P1x, P2x, out):
     with open(fname, 'wb') as f:
         b_trans.write_circuit(f)
 
+# This function prints a python script that uses the Z3 theorem prover to solve
+# the circuit. If Z3 would find a wire assignment, this circuit is broken. It
+# would be possible to make a verifier accept a proof without having access to
+# secret key (aka nonce key). Additionally, it may be possible to create proofs
+# for different outputs given the same message and pubkeys.
+def verifier_cmd_z3(trans, pubkey, P1x, P2x, out):
+    len_v = len(trans.varmap)
+    print("from z3 import *")
+    print("s = Solver()")
+    print("P = %i" % P)
+    print("v = IntVector('v', %i)" % len_v)
+
+    for i in range(len_v):
+        print("s.add(v[%i] >= 0, v[%i] < P)" % (i, i))
+    print("# %i multiplications" % len(trans.muls))
+    for (a, b, m) in trans.muls:
+        print("s.add((%s * %s - %s) %% P == 0)" % (a, b, m))
+    print("# %i linear equations" % len(trans.eqs))
+    for (eq) in trans.eqs:
+         print("s.add((%s) %% P == 0)" % eq)
+    print("# Verify public key")
+    print("s.add(%s %% P == %s %% P)" % (P1x, pubkey))
+    print("s.add(%s %% P == %s // P)" % (P2x, pubkey))
+    print("print(\"Checking...\")")
+    print("s.check()")
+    print("model = s.model()")
+    print("for var in model:")
+    print("    print(var, model[var])")
+
 # prove command with python output
 def prove_cmd_python(trans, pubkey, out_native):
     print("verify(0x%x, 0x%x, [%s])" % (pubkey, out_native, ",".join("%s" % (trans.varmap["v[%i]" % i]) for i in range(len(trans.varmap)))))
@@ -816,7 +845,7 @@ arg_parser = argparse.ArgumentParser(description='A PRF with low multiplicative 
     The available commands are:
     %s gen [--seckey <seckey>]: generate a key
     %s eval <hexmsg> <seckey>: evaluate the PRF
-    %s verifier <hexmsg> <pubkey> [--bulletproofs-outfile <file>]: output verifier circuit for a given message
+    %s verifier <hexmsg> <pubkey> [--z3 | --bulletproofs-outfile <file>]: output verifier circuit for a given message
     %s prove <hexmsg> <seckey> [--bulletproofs-outfile <file>]: produce input for verifier
     ''' % ((__file__,)*5))
 arg_parser.add_argument('cmd', choices=['gen', 'eval', 'verifier', 'prove'])
@@ -855,7 +884,10 @@ elif args.cmd == "verifier":
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('hexmsg')
     arg_parser.add_argument('pubkey')
-    arg_parser.add_argument('--bulletproofs-outfile')
+    group = arg_parser.add_mutually_exclusive_group()
+    group.add_argument('-b', '--bulletproofs-outfile')
+    group.add_argument('-z', '--z3', action="store_true")
+
     args = arg_parser.parse_args(sys.argv[2:])
 
     m = bytes.fromhex(args.hexmsg)
@@ -865,8 +897,10 @@ elif args.cmd == "verifier":
     trans = Transcript()
     out, P1x, P2x, n_bits = circuit_main(trans, M1, M2)
 
-    if args.bulletproofs_outfile is None:
+    if args.bulletproofs_outfile is None and args.z3 is False:
         verifier_cmd_python(trans, P1x, P2x, out)
+    elif args.z3 is True:
+        verifier_cmd_z3(trans, pubkey, P1x, P2x, out)
     else:
         verifier_cmd_bulletproofs(args.bulletproofs_outfile, trans, n_bits, pubkey, P1x, P2x, out)
 
