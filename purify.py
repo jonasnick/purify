@@ -17,12 +17,21 @@ import argparse
 #N2 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDB21C351C4201D4B9A9D124728C31A2F
 
 # Parameters generated using gen_params.sage for secp256k1
-P = 115792089237316195423570985008687907852837564279074904382605163141518161494337
-A = 118
-B = 339
-D = 5
-N1 = 115792089237316195423570985008687907853146579067639158218940405176378157516777
-N2 = 115792089237316195423570985008687907852528549490510650546269921106658165471899
+# P = 115792089237316195423570985008687907852837564279074904382605163141518161494337
+# A = 118
+# B = 339
+# D = 5
+# N1 = 115792089237316195423570985008687907853146579067639158218940405176378157516777
+# N2 = 115792089237316195423570985008687907852528549490510650546269921106658165471899
+
+P = 47 # Field size
+A = 1 # curve equation parameter A
+B = 4 # curve equation parameter B
+D = 5 # non-square in GF(P)
+N1 = 59 # Order of E1: y^2 = x^3 + A*x + B over GF(P)
+N2 = 37 # Order of E2: y^2 = x^3 + A*D^2*x + B*D^3 over GF(P)
+# E1 = (N1 - 1) / 1 # Embedding degree of E1
+# E2 = (N2 - 1) / 12 # Embedding degree of E2
 
 # Parameters generated using gen_params.sage for BLS12-381
 #P = 0x73EDA753299D7D483339D80809A1D80553BDA402FFFE5BFEFFFFFFFF00000001
@@ -823,6 +832,14 @@ def verifier_cmd_z3(trans, pubkey, P1x, P2x, out):
     print("# Verify public key")
     print("s.add(%s %% P == %s %% P)" % (P1x, pubkey))
     print("s.add(%s %% P == %s // P)" % (P2x, pubkey))
+    print("# out: %s" % out)
+    # Using 1234 as message and 181:2f4 as keypair
+    # Uncomment to search for an assignment with a different output
+    # print("s.add(%s != 0x17 %% P)" % out)
+    # Uncomment to search for an assignment other than the dlog of the public key
+    # print("s.add(Or(v[0] != 0, v[1] != 0, v[2] != 0, v[3] != 0, v[4] != 0))")
+    # print("s.add(Or(v[5] != 1, v[6] != 0, v[7] != 1, v[8] != 0, v[9] != 0))")
+    # print("s.add(Or(v[5] != 0, v[6] != 0, v[7] != 0, v[8] != 1, v[9] != 1))")
     print("print(\"Checking...\")")
     print("s.check()")
     print("model = s.model()")
